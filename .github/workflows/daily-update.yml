@@ -41,6 +41,11 @@ jobs:
       - name: Fetch air quality from Open-Meteo
         continue-on-error: true
         run: python fetch_openmeteo.py
+
+      - name: Fetch weather from Open-Meteo
+        continue-on-error: true
+        run: python fetch_weather.py
+    
         
       - name: Commit updated CSV
         run: |
@@ -68,3 +73,8 @@ jobs:
         env:
           BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
         run: python load_air_quality.py
+
+      - name: Load weather into BigQuery
+        env:
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+        run: python load_weather.py
