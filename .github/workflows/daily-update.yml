@@ -63,3 +63,8 @@ jobs:
         env:
           BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
         run: python load_to_bigquery.py
+
+      - name: Load air quality into BigQuery
+        env:
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+        run: python load_air_quality.py
