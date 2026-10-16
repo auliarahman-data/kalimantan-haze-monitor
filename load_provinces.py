@@ -69,7 +69,7 @@ def main() -> int:
     for ft in features:
         props = ft.get("properties", {})
         name = props.get("shapeName", "")
-        if not name.lower().startswith("kalimantan"):
+        if not name.lower().endswith("kalimantan"):
             continue
         geom = ft["geometry"]
         rows.append({
