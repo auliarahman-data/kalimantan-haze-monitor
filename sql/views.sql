@@ -121,6 +121,7 @@ GROUP BY city, tanggal_lokal;
 
 -- 6. Fire hotspots per day per province (date = FIRMS acq_date, UTC).
 --    The latest acq_date is flagged incomplete: NRT data for the last day is still arriving.
+--    Days with no FIRMS data at all have no rows here; view 7 handles them as missing.
 CREATE OR REPLACE VIEW `kalimantan-haze.haze.v_fire_daily_province` AS
 SELECT
   acq_date AS tanggal_utc,
@@ -135,7 +136,11 @@ GROUP BY tanggal_utc, provinsi;
 -- 7. Haze vs fire vs weather per city and day. Each city is matched to the province it
 --    sits in (Samarinda and Balikpapan share East Kalimantan). Local date is joined to the
 --    UTC acq_date, so there is a few hours of offset at day boundaries.
---    titik_api_lengkap = the fire count for that date is no longer the latest, still-arriving day.
+--    Fire days come in two kinds of "no rows":
+--    - FIRMS has detections that day, but none in this province -> a real 0.
+--    - FIRMS has no detections anywhere in Borneo that day (11-16 Jul and 3 Aug 2026)
+--      -> missing data, so the count is NULL, not 0.
+--    titik_api_lengkap = the day has fire data and is not the latest, still-arriving day.
 CREATE OR REPLACE VIEW `kalimantan-haze.haze.v_haze_fire_weather_daily` AS
 WITH kota_provinsi AS (
   SELECT 'Banjarmasin' AS city, 'Kalimantan Selatan' AS provinsi UNION ALL
@@ -143,14 +148,21 @@ WITH kota_provinsi AS (
   SELECT 'Pontianak', 'Kalimantan Barat' UNION ALL
   SELECT 'Samarinda', 'Kalimantan Timur' UNION ALL
   SELECT 'Balikpapan', 'Kalimantan Timur'
+),
+hari_api AS (   -- days on which FIRMS returned any detection for Borneo
+  SELECT DISTINCT acq_date FROM `kalimantan-haze.haze.fire_hotspots`
 )
 SELECT
   a.*,
   k.provinsi,
-  COALESCE(f.titik_api, 0) AS titik_api_provinsi,
-  COALESCE(f.frp_total_mw, 0) AS frp_total_provinsi_mw,
-  a.tanggal_lokal < (SELECT MAX(acq_date) FROM `kalimantan-haze.haze.fire_hotspots`) AS titik_api_lengkap
+  IF(h.acq_date IS NULL, NULL, COALESCE(f.titik_api, 0)) AS titik_api_provinsi,
+  IF(h.acq_date IS NULL, NULL, COALESCE(f.frp_total_mw, 0)) AS frp_total_provinsi_mw,
+  h.acq_date IS NOT NULL
+    AND a.tanggal_lokal < (SELECT MAX(acq_date) FROM `kalimantan-haze.haze.fire_hotspots`)
+    AS titik_api_lengkap
 FROM `kalimantan-haze.haze.v_air_weather_daily` a
 JOIN kota_provinsi k USING (city)
+LEFT JOIN hari_api h
+  ON h.acq_date = a.tanggal_lokal
 LEFT JOIN `kalimantan-haze.haze.v_fire_daily_province` f
   ON f.provinsi = k.provinsi AND f.tanggal_utc = a.tanggal_lokal;

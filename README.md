@@ -36,10 +36,12 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 | `fetch_firms.py`, `fetch_openmeteo.py`, `fetch_weather.py` | Fetch the last 3 days (or a date range with `--start`/`--end`) and merge into the CSVs in `data/` without duplicates |
 | `load_to_bigquery.py`, `load_air_quality.py`, `load_weather.py` | Rebuild each BigQuery table from its CSV (`WRITE_TRUNCATE`) |
 | `load_provinces.py` | One-off load of the five Kalimantan province polygons (GeoJSON text) |
+| `apply_views.py` | Create or replace all views from `sql/views.sql` |
 | `sql/views.sql` | All analysis views, in run order |
 | `.github/workflows/daily-update.yml` | Daily run at 22:40 UTC (06:40 WITA); can also be started manually |
 | `.github/workflows/backfill.yml` | Manual workflow that fills history between two dates for all three sources, then reloads BigQuery |
 | `.github/workflows/load-provinces.yml` | Manual workflow for the province load |
+| `.github/workflows/apply-views.yml` | Manual workflow that applies `sql/views.sql` |
 | `data/` | CSV files committed by the workflows; these are the source of truth. Fire detections are split per month in `data/fire_hotspots/YYYY-MM.csv` to stay well under GitHub's file size limits |
 
 ## Method
@@ -56,7 +58,7 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 ## Limitations
 
 - **Modelled, not measured.** Air quality values are CAMS model estimates, not station readings. The source model has about 3-hour time resolution, so hourly values are probably interpolated and "peak hour" should be read as approximate. Extreme values (Palangka Raya reaches over 3,000 µg/m³ hourly in the model) should be read as model estimates, not as official measurements.
-- **Missing fire days.** FIRMS returned no VIIRS S-NPP detections for Borneo on 11–16 Jul and 3 Aug 2026 (UTC), also on a second request, while the days around them have data. I treat these as missing, not as zero fires, and did not fill them from another satellite because counts from different satellites are not comparable.
+- **Missing fire days.** FIRMS returned no VIIRS S-NPP detections for Borneo on 11–16 Jul and 3 Aug 2026 (UTC), also on a second request, while the days around them have data. I treat these as missing, not as zero fires (the joined view returns `NULL` for them), and did not fill them from another satellite because counts from different satellites are not comparable.
 - **History and mixed sources.** The daily run started on 12 Oct 2026; anything earlier comes from the backfill. Fire counts from SP and NRT are close but not identical products, so a small step at the SP/NRT boundary date is possible.
 - **Fire counts are not normalised** by province area, and the most recent day may still be filling in while near-real-time data arrives (it is flagged as incomplete in the views as a precaution). Daily counts also vary a lot on their own.
 - **Local date vs UTC date.** Daily air quality uses local dates while fire counts use the FIRMS UTC date, so there is an offset of a few hours at day boundaries.
@@ -66,12 +68,12 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 
 ## Snapshot (16 Oct 2026)
 
-These numbers are a dated snapshot, not a conclusion.
+Complete days from 1 Jul to 15 Oct 2026. These numbers are a dated snapshot, not a conclusion; PM2.5 values are model estimates.
 
-- Between 6 and 15 Oct 2026 the table holds 34,138 hotspots; about 70% (23,729) fall in Central Kalimantan.
-- Over the same window the other provinces have far fewer: South 3,587, East 3,517, West 3,009, North 58, and 238 outside the five provinces.
-- Palangka Raya's modelled daily mean PM2.5 on 13, 14 and 15 Oct was about 977, 1,135 and 805 µg/m³ (all in the Hazardous category), against roughly 28–82 µg/m³ in the other four cities.
-- With three complete days of air quality data, any link between PM2.5, hotspots and weather is only suggestive. The dashboard fills in as daily data accumulates.
+- 270,425 fire detections: 7,410 in July, 93,207 in August, 116,531 in September, 53,221 in the first half of October. Central Kalimantan has 51%, West Kalimantan 27%.
+- West Kalimantan peaked in August, Central Kalimantan in September.
+- Palangka Raya's monthly mean of daily PM2.5 went from about 25 µg/m³ (July) to 747 (first half of October), with 48 Hazardous days. Balikpapan never reached Unhealthy.
+- Daily hotspots and PM2.5 move together mostly through the season. The model behind PM2.5 also uses satellite fire data as an input, so the link is not independent evidence. Details in the [case study](docs/case-study.md).
 
 ## Run it yourself
 
@@ -79,7 +81,7 @@ These numbers are a dated snapshot, not a conclusion.
 2. Create a BigQuery project and dataset (`haze`) and a service account that can write to it.
 3. Add three GitHub Actions secrets: `FIRMS_MAP_KEY` (from NASA FIRMS), `GCP_SA_KEY` (service account key) and `BQ_PROJECT` (project ID). Never commit these values.
 4. Run **load-provinces** once, then the **backfill** workflow with the start date you want (the daily run keeps it up to date afterwards).
-5. Run `sql/views.sql` in the BigQuery console.
+5. Run the **apply-views** workflow (or paste `sql/views.sql` into the BigQuery console).
 
 ## License
 
