@@ -56,6 +56,7 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 ## Limitations
 
 - **Modelled, not measured.** Air quality values are CAMS model estimates, not station readings. The source model has about 3-hour time resolution, so hourly values are probably interpolated and "peak hour" should be read as approximate. Extreme values (Palangka Raya reaches over 3,000 µg/m³ hourly in the model) should be read as model estimates, not as official measurements.
+- **Missing fire days.** FIRMS returned no VIIRS S-NPP detections for Borneo on 11–16 Jul and 3 Aug 2026 (UTC), also on a second request, while the days around them have data. I treat these as missing, not as zero fires, and did not fill them from another satellite because counts from different satellites are not comparable.
 - **History and mixed sources.** The daily run started on 12 Oct 2026; anything earlier comes from the backfill. Fire counts from SP and NRT are close but not identical products, so a small step at the SP/NRT boundary date is possible.
 - **Fire counts are not normalised** by province area, and the most recent day may still be filling in while near-real-time data arrives (it is flagged as incomplete in the views as a precaution). Daily counts also vary a lot on their own.
 - **Local date vs UTC date.** Daily air quality uses local dates while fire counts use the FIRMS UTC date, so there is an offset of a few hours at day boundaries.
