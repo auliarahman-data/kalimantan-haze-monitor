@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       days:
-        description: "Days to fetch, ending today UTC (use 10 for a first backfill)"
+        description: "Days to fetch, ending today UTC (for longer history use the backfill workflow)"
         default: "3"
 
 permissions:

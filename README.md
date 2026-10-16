@@ -22,9 +22,9 @@ Open-Meteo Weather            ─┘        (GitHub Actions, daily)   (source of
 
 | Data | Source | Notes |
 |---|---|---|
-| Fire detections | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/), VIIRS S-NPP near-real-time | Needs a free MAP_KEY |
+| Fire detections | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov/), VIIRS S-NPP: near-real-time (`VIIRS_SNPP_NRT`) for the daily run, standard processing (`VIIRS_SNPP_SP`) for older days where available | Needs a free MAP_KEY |
 | Air quality | [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api), CAMS ENSEMBLE data provider | Model output on a coarse grid (about 45 km), not station measurements |
-| Weather | [Open-Meteo Weather API](https://open-meteo.com/) | Grid of about 9–11 km. Free API use is non-commercial only |
+| Weather | [Open-Meteo Weather API](https://open-meteo.com/); backfill from the [Historical Forecast API](https://open-meteo.com/en/docs/historical-forecast-api) | Grid of about 9–11 km. Free API use is non-commercial only |
 | Province boundaries | [geoBoundaries](https://www.geoboundaries.org/) gbOpen IDN ADM1, pinned to commit `9469f09` | © OpenStreetMap contributors, ODbL 1.0 |
 
 The boundary file is downloaded when `load_provinces.py` runs and is not stored in this repository.
@@ -33,18 +33,20 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 
 | Path | Purpose |
 |---|---|
-| `fetch_firms.py`, `fetch_openmeteo.py`, `fetch_weather.py` | Fetch the last 3 days and merge into the CSVs in `data/` without duplicates |
+| `fetch_firms.py`, `fetch_openmeteo.py`, `fetch_weather.py` | Fetch the last 3 days (or a date range with `--start`/`--end`) and merge into the CSVs in `data/` without duplicates |
 | `load_to_bigquery.py`, `load_air_quality.py`, `load_weather.py` | Rebuild each BigQuery table from its CSV (`WRITE_TRUNCATE`) |
 | `load_provinces.py` | One-off load of the five Kalimantan province polygons (GeoJSON text) |
 | `sql/views.sql` | All analysis views, in run order |
 | `.github/workflows/daily-update.yml` | Daily run at 22:40 UTC (06:40 WITA); can also be started manually |
+| `.github/workflows/backfill.yml` | Manual workflow that fills history between two dates for all three sources, then reloads BigQuery |
 | `.github/workflows/load-provinces.yml` | Manual workflow for the province load |
-| `data/` | CSV files committed by the workflow; these are the source of truth |
+| `data/` | CSV files committed by the workflows; these are the source of truth. Fire detections are split per month in `data/fire_hotspots/YYYY-MM.csv` to stay well under GitHub's file size limits |
 
 ## Method
 
 - **Why CSV first.** BigQuery sandbox tables expire after 60 days, so the CSVs in this repo are the permanent record and BigQuery is rebuilt from them. The loaders refuse to truncate a table if the CSV is missing or empty.
 - **No duplicates.** Each daily run re-fetches the last 3 days, so one missed run leaves no gap. Fire detections are keyed on `(detected_at_utc, latitude, longitude)`, air quality and weather on `(city, time_utc)`.
+- **Backfill.** The `backfill` workflow takes a start and end date. Fire detections come from SP where FIRMS has published it and from NRT otherwise, one source per day: when a day is fetched from one source, that day's rows from the other source are dropped, so the same fire is never counted twice. The `source` column records which product each row came from. Air quality uses the same Open-Meteo endpoint and model as the daily run. Weather older than 92 days is not available from the live API, so the backfill uses Open-Meteo's archive of the same forecast models; its grid point can differ slightly from the live API (see `grid_lat`, `grid_lon`). A backfill only fills hours that are missing and never overwrites rows collected by the daily run.
 - **Complete hours only.** The air quality and weather scripts drop the current partial hour and forecast hours.
 - **Time zones.** Data is stored in UTC. Pontianak and Palangka Raya use WIB (UTC+7); the other three cities use WITA (UTC+8). Fire hotspots get a local time based on the province they fall in.
 - **PM2.5 categories.** US EPA 2024 breakpoints (µg/m³) applied to the **24-hour mean**, not to single hours: Good 0–9.0, Moderate 9.1–35.4, Unhealthy for sensitive groups 35.5–55.4, Unhealthy 55.5–125.4, Very unhealthy 125.5–225.4, Hazardous 225.5 and above. A day or window counts only when all 24 hours are present.
@@ -54,7 +56,7 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 ## Limitations
 
 - **Modelled, not measured.** Air quality values are CAMS model estimates, not station readings. The source model has about 3-hour time resolution, so hourly values are probably interpolated and "peak hour" should be read as approximate. Extreme values (Palangka Raya reaches over 3,000 µg/m³ hourly in the model) should be read as model estimates, not as official measurements.
-- **Short history.** The air quality and weather history starts on 12 Oct 2026. Patterns over a few days are observations, not trends.
+- **History and mixed sources.** The daily run started on 12 Oct 2026; anything earlier comes from the backfill. Fire counts from SP and NRT are close but not identical products, so a small step at the SP/NRT boundary date is possible.
 - **Fire counts are not normalised** by province area, and the most recent day may still be filling in while near-real-time data arrives (it is flagged as incomplete in the views as a precaution). Daily counts also vary a lot on their own.
 - **Local date vs UTC date.** Daily air quality uses local dates while fire counts use the FIRMS UTC date, so there is an offset of a few hours at day boundaries.
 - **One reference city per province** (two for East Kalimantan). City values are not province averages.
@@ -75,7 +77,7 @@ These numbers are a dated snapshot, not a conclusion.
 1. Fork the repository.
 2. Create a BigQuery project and dataset (`haze`) and a service account that can write to it.
 3. Add three GitHub Actions secrets: `FIRMS_MAP_KEY` (from NASA FIRMS), `GCP_SA_KEY` (service account key) and `BQ_PROJECT` (project ID). Never commit these values.
-4. Run the **daily-update** workflow once with `days = 10` for a first backfill, then **load-provinces** once.
+4. Run **load-provinces** once, then the **backfill** workflow with the start date you want (the daily run keeps it up to date afterwards).
 5. Run `sql/views.sql` in the BigQuery console.
 
 ## License

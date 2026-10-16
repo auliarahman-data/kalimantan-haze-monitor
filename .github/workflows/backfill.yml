@@ -1,0 +1,89 @@
+name: backfill
+
+# Manual one-off: fill history for all three sources between two dates, then
+# rebuild the BigQuery tables. Safe to re-run: every fetcher merges by key.
+# - Fire: per day, SP (standard processing) where FIRMS has it, NRT otherwise.
+# - Air quality: same Open-Meteo endpoint and model as the daily run.
+# - Weather: Open-Meteo historical forecast archive (the live API only reaches
+#   92 days back). Existing hourly rows are never overwritten by a backfill.
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "First UTC date (YYYY-MM-DD). 30 Jun gives complete local days from 1 Jul."
+        default: "2026-06-30"
+      end_date:
+        description: "Last UTC date (YYYY-MM-DD). Leave empty for today."
+        default: ""
+
+permissions:
+  contents: write   # commits data/ back to the repo
+
+concurrency:
+  group: daily-update     # same group as the daily run: never two writers at once
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      START: ${{ github.event.inputs.start_date }}
+      END: ${{ github.event.inputs.end_date }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Backfill fire detections (NASA FIRMS, SP + NRT)
+        env:
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+        run: python fetch_firms.py --start "$START" ${END:+--end "$END"} --source auto
+
+      - name: Backfill air quality (Open-Meteo)
+        run: python fetch_openmeteo.py --start "$START" ${END:+--end "$END"}
+
+      - name: Backfill weather (Open-Meteo historical forecast)
+        run: python fetch_weather.py --start "$START" ${END:+--end "$END"}
+
+      - name: Show file sizes
+        run: du -h data/*.csv data/fire_hotspots/*.csv
+
+      - name: Commit updated CSVs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No new rows to commit"
+          else
+            git commit -m "data: backfill from $START"
+            git push
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Load fire detections into BigQuery
+        env:
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+        run: python load_to_bigquery.py
+
+      - name: Load air quality into BigQuery
+        env:
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+        run: python load_air_quality.py
+
+      - name: Load weather into BigQuery
+        env:
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+        run: python load_weather.py
