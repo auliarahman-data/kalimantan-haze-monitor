@@ -4,7 +4,7 @@ When and where does air quality get worse in Kalimantan, and does it follow fire
 
 This project collects three open data sources every day, loads them into BigQuery, and turns them into a small set of analysis views and a Looker Studio dashboard. It covers five reference cities (Banjarmasin, Palangka Raya, Pontianak, Samarinda, Balikpapan) and the five Kalimantan provinces.
 
-Dashboard: _link coming soon_
+Dashboard: _link coming soon_ · [Case study](docs/case-study.md)
 
 ## What it does
 
@@ -55,7 +55,7 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 
 - **Modelled, not measured.** Air quality values are CAMS model estimates, not station readings. The source model has about 3-hour time resolution, so hourly values are probably interpolated and "peak hour" should be read as approximate. Extreme values (Palangka Raya reaches over 3,000 µg/m³ hourly in the model) should be read as model estimates, not as official measurements.
 - **Short history.** The air quality and weather history starts on 12 Oct 2026. Patterns over a few days are observations, not trends.
-- **Fire counts are not normalised** by province area, and the most recent day is always incomplete while NRT data arrives (it is flagged in the views).
+- **Fire counts are not normalised** by province area, and the most recent day may still be filling in while near-real-time data arrives (it is flagged as incomplete in the views as a precaution). Daily counts also vary a lot on their own.
 - **Local date vs UTC date.** Daily air quality uses local dates while fire counts use the FIRMS UTC date, so there is an offset of a few hours at day boundaries.
 - **One reference city per province** (two for East Kalimantan). City values are not province averages.
 - **`us_aqi_pm2_5` from Open-Meteo** is a rolling 24-hour value on the EPA 2024 scale and can exceed 500; I use PM2.5 directly and apply the categories above.
