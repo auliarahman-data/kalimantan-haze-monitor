@@ -1,6 +1,8 @@
 -- Views for kalimantan-haze-monitor (BigQuery project: kalimantan-haze, dataset: haze)
--- Run order: v_air_quality_clean -> v_air_quality_daily -> v_air_weather_hourly;
--- v_fire_hotspots_province is independent.
+-- Run order: v_air_quality_clean -> v_air_quality_daily -> v_air_weather_hourly
+--   -> v_air_weather_daily; v_fire_hotspots_province -> v_fire_daily_province;
+--   v_haze_fire_weather_daily needs v_air_weather_daily and v_fire_daily_province.
+-- Column names are in Indonesian (the dashboard audience); comments are in English.
 -- Time zones: Pontianak and Palangka Raya use WIB (UTC+7); other cities WITA (UTC+8).
 -- PM2.5 categories use US EPA 2024 breakpoints on the 24-hour average (ug/m3).
 
@@ -95,3 +97,60 @@ SELECT
 FROM `kalimantan-haze.haze.fire_hotspots` h
 LEFT JOIN prov p
   ON ST_CONTAINS(p.geom, ST_GEOGPOINT(h.longitude, h.latitude));
+
+-- 5. Daily air quality + weather per city (local date; hari_lengkap = all 24 hours present)
+--    Wind speed is km/h (Open-Meteo default; fetch_weather.py does not override the unit).
+--    Wind direction is not averaged: a plain mean of degrees is wrong (350 and 10 are not 180).
+CREATE OR REPLACE VIEW `kalimantan-haze.haze.v_air_weather_daily` AS
+SELECT
+  city,
+  DATE(time_local) AS tanggal_lokal,
+  COUNT(*) AS jam_tercatat,
+  COUNT(*) = 24 AS hari_lengkap,
+  ROUND(AVG(pm2_5), 1) AS pm25_rata2,
+  ROUND(MAX(pm2_5), 1) AS pm25_maks,
+  ROUND(AVG(temperature_2m), 1) AS suhu_rata2_c,
+  ROUND(MAX(temperature_2m), 1) AS suhu_maks_c,
+  ROUND(AVG(relative_humidity_2m), 1) AS kelembapan_rata2_persen,
+  ROUND(SUM(precipitation), 1) AS hujan_total_mm,
+  ROUND(AVG(cloud_cover), 1) AS awan_rata2_persen,
+  ROUND(AVG(wind_speed_10m), 1) AS angin_rata2,
+  ROUND(MAX(wind_speed_10m), 1) AS angin_maks
+FROM `kalimantan-haze.haze.v_air_weather_hourly`
+GROUP BY city, tanggal_lokal;
+
+-- 6. Fire hotspots per day per province (date = FIRMS acq_date, UTC).
+--    The latest acq_date is flagged incomplete: NRT data for the last day is still arriving.
+CREATE OR REPLACE VIEW `kalimantan-haze.haze.v_fire_daily_province` AS
+SELECT
+  acq_date AS tanggal_utc,
+  provinsi,
+  COUNT(*) AS titik_api,
+  COUNTIF(LOWER(confidence) IN ('h', 'high')) AS titik_api_conf_tinggi,
+  ROUND(SUM(frp), 1) AS frp_total_mw,
+  acq_date < (SELECT MAX(acq_date) FROM `kalimantan-haze.haze.fire_hotspots`) AS hari_lengkap
+FROM `kalimantan-haze.haze.v_fire_hotspots_province`
+GROUP BY tanggal_utc, provinsi;
+
+-- 7. Haze vs fire vs weather per city and day. Each city is matched to the province it
+--    sits in (Samarinda and Balikpapan share East Kalimantan). Local date is joined to the
+--    UTC acq_date, so there is a few hours of offset at day boundaries.
+--    titik_api_lengkap = the fire count for that date is no longer the latest, still-arriving day.
+CREATE OR REPLACE VIEW `kalimantan-haze.haze.v_haze_fire_weather_daily` AS
+WITH kota_provinsi AS (
+  SELECT 'Banjarmasin' AS city, 'Kalimantan Selatan' AS provinsi UNION ALL
+  SELECT 'Palangka Raya', 'Kalimantan Tengah' UNION ALL
+  SELECT 'Pontianak', 'Kalimantan Barat' UNION ALL
+  SELECT 'Samarinda', 'Kalimantan Timur' UNION ALL
+  SELECT 'Balikpapan', 'Kalimantan Timur'
+)
+SELECT
+  a.*,
+  k.provinsi,
+  COALESCE(f.titik_api, 0) AS titik_api_provinsi,
+  COALESCE(f.frp_total_mw, 0) AS frp_total_provinsi_mw,
+  a.tanggal_lokal < (SELECT MAX(acq_date) FROM `kalimantan-haze.haze.fire_hotspots`) AS titik_api_lengkap
+FROM `kalimantan-haze.haze.v_air_weather_daily` a
+JOIN kota_provinsi k USING (city)
+LEFT JOIN `kalimantan-haze.haze.v_fire_daily_province` f
+  ON f.provinsi = k.provinsi AND f.tanggal_utc = a.tanggal_lokal;
