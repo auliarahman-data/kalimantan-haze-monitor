@@ -107,4 +107,8 @@ def main() -> int:
 
     loaded = client.get_table(table_id).num_rows
     print(f"loaded into {table_id} | rows sent: {len(rows)} | table rows: {loaded}")
-    return
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
