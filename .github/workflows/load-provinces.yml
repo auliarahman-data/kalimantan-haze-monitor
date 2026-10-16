@@ -1,0 +1,33 @@
+name: load-provinces
+
+# One-off, manual run: loads Kalimantan province boundaries into BigQuery.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Load province boundaries into BigQuery
+        env:
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+        run: python load_provinces.py
