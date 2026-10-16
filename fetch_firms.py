@@ -49,10 +49,10 @@ BBOX = "108.5,-4.5,119.5,4.5"          # west,south,east,north (all of Borneo)
 OUT_DIR = Path("data/fire_hotspots")
 MAX_DAYS_PER_CALL = 5                   # FIRMS limit per request
 
-EXPECTED_HEADER = (
-    "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,"
-    "instrument,confidence,version,bright_ti5,frp,daynight"
-)
+REQUIRED_COLUMNS = {
+    "latitude", "longitude", "bright_ti4", "scan", "track", "acq_date", "acq_time",
+    "satellite", "instrument", "confidence", "version", "bright_ti5", "frp", "daynight",
+}
 FIELDS = [
     "detected_at_utc", "acq_date", "latitude", "longitude", "bright_ti4",
     "bright_ti5", "scan", "track", "satellite", "instrument", "confidence",
@@ -67,7 +67,9 @@ def row_key(row: dict) -> tuple:
 def parse_rows(text: str, source: str) -> list[dict]:
     """Turn a FIRMS CSV response into rows with a combined UTC timestamp."""
     lines = text.strip().splitlines()
-    if not lines or lines[0].strip() != EXPECTED_HEADER:
+    header = set(lines[0].strip().split(",")) if lines else set()
+    # SP files carry extra columns (e.g. `type`); only the columns used must exist
+    if not REQUIRED_COLUMNS <= header:
         # FIRMS reports problems (bad key, limits) as plain text, not CSV
         snippet = (lines[0] if lines else "empty response")[:120]
         raise RuntimeError(f"Unexpected FIRMS response: {snippet}")
