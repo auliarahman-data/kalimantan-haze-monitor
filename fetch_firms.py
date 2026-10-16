@@ -32,6 +32,7 @@ import argparse
 import csv
 import io
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -119,13 +120,22 @@ def fetch_chunk(map_key: str, source: str, start: date, days: int) -> list[dict]
 
 
 def availability(map_key: str, source: str) -> tuple[date, date]:
-    """(min_date, max_date) for a source, from FIRMS /api/data_availability."""
+    """(min_date, max_date) for a source, from FIRMS /api/data_availability.
+
+    Tolerant parsing: the row is the one that mentions the source name, and
+    the dates are the first two YYYY-MM-DD values in that row (min, max)."""
     text = get(f"{AVAILABILITY_API}/{map_key}/{source}")
-    for r in csv.DictReader(io.StringIO(text.strip())):
-        if r.get("data_id") == source:
-            return (date.fromisoformat(r["min_date"]),
-                    date.fromisoformat(r["max_date"]))
-    raise RuntimeError(f"No availability row for {source}: {text.strip()[:120]}")
+    lines = [ln for ln in text.strip().splitlines() if ln.strip()]
+    print(f"::notice::FIRMS availability header: {lines[0][:150] if lines else 'empty'}")
+    for ln in lines:
+        if source not in ln:
+            continue
+        dates = re.findall(r"\d{4}-\d{2}-\d{2}", ln)
+        if len(dates) >= 2:
+            d1, d2 = sorted(date.fromisoformat(d) for d in dates[:2])
+            print(f"::notice::FIRMS availability {source}: {d1} .. {d2}")
+            return d1, d2
+    raise RuntimeError(f"No availability row for {source}: {' | '.join(lines[:3])[:200]}")
 
 
 def month_file(month: str) -> Path:
@@ -198,7 +208,7 @@ def main() -> int:
 
     map_key = os.environ.get("FIRMS_MAP_KEY")
     if not map_key:
-        print("FIRMS_MAP_KEY is not set", file=sys.stderr)
+        print("::error::FIRMS_MAP_KEY is not set", file=sys.stderr)
         return 1
 
     today = datetime.now(timezone.utc).date()
@@ -246,4 +256,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:
+        # GitHub annotation, readable without the full log. Messages here never
+        # contain the request URL (get() reports exception types only).
+        print(f"::error::{type(exc).__name__}: {str(exc)[:300]}")
+        raise
