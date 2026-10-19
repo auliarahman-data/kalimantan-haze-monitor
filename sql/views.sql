@@ -134,7 +134,8 @@ FROM `kalimantan-haze.haze.v_fire_hotspots_province`
 GROUP BY tanggal_utc, provinsi;
 
 -- 7. Haze vs fire vs weather per city and day. Each city is matched to the province it
---    sits in (Samarinda and Balikpapan share East Kalimantan). Local date is joined to the
+--    sits in (one city per province: Balikpapan for East, Tarakan for North Kalimantan).
+--    Local date is joined to the
 --    UTC acq_date, so there is a few hours of offset at day boundaries.
 --    Fire days come in two kinds of "no rows":
 --    - FIRMS has detections that day, but none in this province -> a real 0.
@@ -146,8 +147,8 @@ WITH kota_provinsi AS (
   SELECT 'Banjarmasin' AS city, 'Kalimantan Selatan' AS provinsi UNION ALL
   SELECT 'Palangka Raya', 'Kalimantan Tengah' UNION ALL
   SELECT 'Pontianak', 'Kalimantan Barat' UNION ALL
-  SELECT 'Samarinda', 'Kalimantan Timur' UNION ALL
-  SELECT 'Balikpapan', 'Kalimantan Timur'
+  SELECT 'Balikpapan', 'Kalimantan Timur' UNION ALL
+  SELECT 'Tarakan', 'Kalimantan Utara'
 ),
 hari_api AS (   -- days on which FIRMS returned any detection for Borneo
   SELECT DISTINCT acq_date FROM `kalimantan-haze.haze.fire_hotspots`

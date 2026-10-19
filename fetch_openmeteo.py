@@ -9,8 +9,8 @@ CITIES = [
     ("Banjarmasin", -3.32, 114.59),
     ("Palangka Raya", -2.21, 113.92),
     ("Pontianak", -0.03, 109.33),
-    ("Samarinda", -0.50, 117.15),
     ("Balikpapan", -1.24, 116.83),
+    ("Tarakan", 3.30, 117.63),
 ]
 URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OUT = "data/air_quality.csv"
