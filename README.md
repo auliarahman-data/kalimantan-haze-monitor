@@ -4,7 +4,7 @@ When and where does air quality get worse in Kalimantan, and does it follow fire
 
 This project collects three open data sources every day, loads them into BigQuery, and turns them into a small set of analysis views and a Looker Studio dashboard. It covers five reference cities (Banjarmasin, Palangka Raya, Pontianak, Balikpapan, Tarakan) and the five Kalimantan provinces.
 
-Dashboard: _link coming soon_ · [Case study](docs/case-study.md)
+[Dashboard (Looker Studio)](https://datastudio.google.com/reporting/c94f012a-1af2-4b35-80c3-46e6545f8720/page/nGQBG) · [Case study](docs/case-study.md)
 
 ## What it does
 
