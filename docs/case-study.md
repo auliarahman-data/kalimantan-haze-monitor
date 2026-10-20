@@ -25,7 +25,7 @@ The decisions below are the ones that shaped the result, including the mistakes 
 
 **Join on `(city, time_utc)`, not on coordinates.** The weather grid (about 9–11 km) and the air quality grid (about 45 km) differ, so matching by coordinates would silently pair different cells.
 
-**Keep rows I cannot place.** Fire hotspots are fetched for all of Borneo, so some fall outside the five Kalimantan provinces (3,568 of 270,425, about 1.3%, probably coast and neighbouring territory, though I have not inspected them). They are labelled and kept rather than dropped, so counts reconcile with the source table.
+**Keep rows I cannot place.** Fire hotspots are fetched for all of Borneo, so some fall outside the five Kalimantan provinces (3,562 of 270,280, about 1.3%, probably coast and neighbouring territory, though I have not inspected them). They are labelled and kept rather than dropped, so counts reconcile with the source table.
 
 ## 3. Problems found and fixed
 
@@ -45,7 +45,7 @@ These are the parts I would want a reviewer to see.
 
 A dated snapshot (complete days, 1 Jul – 15 Oct 2026). PM2.5 values are model estimates, not station readings.
 
-- **Fire season.** 270,425 VIIRS detections across Borneo: 7,410 in July, 93,207 in August, 116,531 in September and 53,221 in the first half of October (July is missing six days, see above). Central Kalimantan has 51% (139,082) and West Kalimantan 27% (74,045); East 26,957, South 24,152, North 2,621.
+- **Fire season.** 270,280 VIIRS detections across Borneo: 7,410 in July, 93,207 in August, 116,531 in September and 53,132 in the first half of October (July is missing six days, see above). Central Kalimantan has 51% (139,017) and West Kalimantan 27% (74,043); East 26,915, South 24,131, North 2,612.
 - **The provinces peak at different times.** West Kalimantan had the most detections in August (40,181, more than Central Kalimantan that month); Central Kalimantan peaked in September (68,123).
 - **Haze follows the same split.** Palangka Raya's monthly mean of daily PM2.5 rose from about 25 µg/m³ in July to 124 in August, 465 in September and 747 in the first half of October. It had 48 Hazardous days (first on 21 Aug) and a highest daily mean of about 1,140 on 23 Sep. Pontianak, next to the August fires in West Kalimantan, had 64 days at Unhealthy or worse, starting 25 Jul, with its highest daily mean (about 199) on 27 Aug. Banjarmasin reached Unhealthy only from 12 Sep. Balikpapan never did (highest daily mean about 44).
 - **Correlation, read with care.** Daily hotspots in Central Kalimantan and PM2.5 in Palangka Raya have a rank correlation of about 0.8. Most of that is the shared season: both rise from July to October. After removing a 15-day trend, the same-day correlation is about 0, and the correlation with the previous day's hotspots is about 0.4. That fits smoke taking time to build up and drift, but it is not proof.
@@ -59,7 +59,8 @@ What I claim: the timing and location of the worst modelled haze match the timin
 - Air quality values are CAMS model estimates, not station measurements, on a coarse grid with roughly 3-hour time resolution. Hourly values are probably interpolated, so peak hours are approximate, and extreme values are model output.
 - Fire counts are not normalised by province area.
 - Local-date air quality is joined to UTC-date fire counts, so day boundaries differ by a few hours.
-- Each province is represented by one reference city (two for East Kalimantan).
+- Each province is represented by one reference city (Balikpapan for East Kalimantan, Tarakan for North Kalimantan).
+- Counts are fire detections, not distinct fires: the same fire can be detected by several passes and on consecutive days (roughly half of the detections repeat a location already seen that day).
 - The free Open-Meteo API is for non-commercial use only.
 
 ## 6. Next steps

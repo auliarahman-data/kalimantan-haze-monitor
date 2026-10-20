@@ -62,7 +62,8 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 - **History and mixed sources.** The daily run started on 12 Oct 2026; anything earlier comes from the backfill. Fire counts from SP and NRT are close but not identical products, so a small step at the SP/NRT boundary date is possible.
 - **Fire counts are not normalised** by province area, and the most recent day may still be filling in while near-real-time data arrives (it is flagged as incomplete in the views as a precaution). Daily counts also vary a lot on their own.
 - **Local date vs UTC date.** Daily air quality uses local dates while fire counts use the FIRMS UTC date, so there is an offset of a few hours at day boundaries.
-- **One reference city per province** (two for East Kalimantan). City values are not province averages.
+- **Detections are not distinct fires.** Each row is one satellite detection. The same fire can be detected by several passes on the same day and on consecutive days. Roughly half of the detections repeat a location (about 1 km cell, approximate) already seen that day, and 1,260 rows (0.45%) are near-identical. Read the counts as fire detections, not as a number of fires.
+- **One reference city per province** (Balikpapan for East Kalimantan, Tarakan for North Kalimantan). City values are not province averages. Banjarmasin represents South Kalimantan, Palangka Raya Central and Pontianak West.
 - **`us_aqi_pm2_5` from Open-Meteo** is a rolling 24-hour value on the EPA 2024 scale and can exceed 500; I use PM2.5 directly and apply the categories above.
 - **Sandbox expiry.** Tables and views in the BigQuery sandbox expire; `sql/views.sql` recreates the views and the loaders rebuild the tables from the CSVs.
 
@@ -70,7 +71,7 @@ The boundary file is downloaded when `load_provinces.py` runs and is not stored 
 
 Complete days from 1 Jul to 15 Oct 2026. These numbers are a dated snapshot, not a conclusion; PM2.5 values are model estimates.
 
-- 270,425 fire detections: 7,410 in July, 93,207 in August, 116,531 in September, 53,221 in the first half of October. Central Kalimantan has 51%, West Kalimantan 27%.
+- 270,280 fire detections: 7,410 in July, 93,207 in August, 116,531 in September, 53,132 in the first half of October. Central Kalimantan has 51%, West Kalimantan 27%.
 - West Kalimantan peaked in August, Central Kalimantan in September.
 - Palangka Raya's monthly mean of daily PM2.5 went from about 25 µg/m³ (July) to 747 (first half of October), with 48 Hazardous days. Balikpapan never reached Unhealthy.
 - Daily hotspots and PM2.5 move together mostly through the season. The model behind PM2.5 also uses satellite fire data as an input, so the link is not independent evidence. Details in the [case study](docs/case-study.md).
